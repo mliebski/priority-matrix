@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Priority Matrix</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Priority Matrix</h1>
+    <span id="ai-status" class="ai-status" role="status"></span>
+    <button id="open-settings" class="quiet">Settings</button>
+  </header>
+
+  <main class="layout">
+    <section class="inbox" id="inbox" aria-labelledby="inbox-title">
+      <h2 id="inbox-title">To sort <span id="inbox-count" class="count"></span></h2>
+      <form id="add-form">
+        <label class="sr-only" for="add-text">Add to-do items</label>
+        <textarea id="add-text" rows="3" placeholder="Add an item, or paste your whole list, one per line"></textarea>
+        <button class="primary-outline" type="submit">Add</button>
+      </form>
+      <button id="goals-nudge" class="nudge" hidden>
+        <strong>First, what matters to you?</strong>
+        The coach can't judge importance without knowing your goals.
+      </button>
+      <button id="sort-next" class="primary" hidden>Sort these with the coach</button>
+      <div id="inbox-list" class="cards"></div>
+      <details id="finished" hidden>
+        <summary>Finished <span id="finished-count" class="count"></span></summary>
+        <div id="finished-list" class="cards"></div>
+      </details>
+    </section>
+
+    <section class="matrix-wrap" aria-label="Priority matrix">
+      <div class="axis-x"><span>Urgent</span><span>Not urgent</span></div>
+      <div class="matrix-row">
+        <div class="axis-y"><span>Important</span><span>Not important</span></div>
+        <div class="matrix" id="matrix"></div>
+      </div>
+    </section>
+  </main>
+
+  <aside id="coach" class="coach" aria-label="Coach" hidden>
+    <div class="coach-head">
+      <label class="sr-only" for="coach-title">Item</label>
+      <textarea id="coach-title" rows="2"></textarea>
+      <button id="coach-close" class="quiet" aria-label="Close">✕</button>
+    </div>
+    <label class="due">Due date <input type="date" id="coach-due"></label>
+    <div id="chat" class="chat" aria-live="polite"></div>
+    <form id="answer-form">
+      <label class="sr-only" for="answer">Your answer</label>
+      <textarea id="answer" rows="2" placeholder="Your answer"></textarea>
+      <button class="primary-outline" type="submit" id="answer-send">Send</button>
+    </form>
+    <p class="picker-label">Place it</p>
+    <div id="picker" class="picker"></div>
+    <div class="coach-actions">
+      <button id="coach-done" class="quiet">Mark done</button>
+      <button id="coach-restart" class="quiet">Start over</button>
+      <button id="coach-delete" class="quiet danger">Delete</button>
+    </div>
+  </aside>
+
+  <dialog id="settings">
+    <form id="settings-form" method="dialog">
+      <h2>Settings</h2>
+      <label for="goals">What matters to you right now</label>
+      <p class="hint">Your goals, roles and responsibilities. This is what the coach measures importance against.</p>
+      <textarea id="goals" rows="6" placeholder="Finish my certification by March. Be home for dinner with the kids. Keep the house paid off."></textarea>
+      <label for="model">AI model</label>
+      <select id="model"></select>
+      <p class="hint" id="settings-ai"></p>
+      <div class="dialog-actions">
+        <button type="button" id="settings-cancel" class="quiet">Cancel</button>
+        <button type="submit" class="primary" id="settings-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="alert" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
