@@ -13,19 +13,22 @@ Turns a to-do list into a decision about what matters. You paste your list, and 
 - **It works without the AI.** If Ollama is down you can still add, drag and place items.
 - **Private.** Items are only sent to your own Ollama server, and everything is stored in one SQLite file on the box.
 
+![The matrix with items sorted into Do, Schedule, Delegate and Drop](docs/images/matrix.jpg)
+
+## Documentation
+
+- **[User guide](docs/user-guide.md):** the method, a walkthrough, tips for answering the coach, and a weekly routine.
+- **[Architecture](docs/architecture.md):** how the parts fit together, how the coach decides, data, API, privacy and design choices.
+
+![Architecture overview](docs/architecture.svg)
+
 ## Start it
 
-You need Docker on the box and Ollama running natively. If `budget-tracker` already works on this box, Docker and Ollama are already set up, so skip step 2.
+You need a Linux box with Docker, and Ollama running natively on it. Any small always-on PC or a Raspberry Pi 5 will do. If Ollama already serves another container on the box, skip step 2.
 
-1. **Download the code.** The repository is private, so the box needs its own read-only key. GitHub allows a deploy key on only one repository, so this one gets a new key and a separate SSH name, which leaves any existing `github.com` setup alone. Log in to the box and run:
+1. **Download the code** on the box:
    ```bash
-   ssh-keygen -t ed25519 -f ~/.ssh/matrix_deploy -N "" -C "matrix box"
-   printf 'Host github-matrix\n  HostName github.com\n  IdentityFile ~/.ssh/matrix_deploy\n  IdentitiesOnly yes\n' >> ~/.ssh/config
-   cat ~/.ssh/matrix_deploy.pub
-   ```
-   On GitHub, open the repository → **Settings → Deploy keys → Add deploy key**. Paste the line printed by `cat`, and leave *Allow write access* **unticked**. Then:
-   ```bash
-   git clone git@github-matrix:mliebski/priority-matrix.git
+   git clone https://github.com/mliebski/priority-matrix.git
    cd priority-matrix
    ```
 2. **One-time Ollama setup.** Install Ollama and a model, then let containers reach it:
@@ -74,17 +77,7 @@ If no model is picked or set and only one is installed, the app uses that one. T
 
 On a CPU-only box the first answer can take a minute while the model loads. Later ones are quicker, because the model stays in memory for 15 minutes.
 
-## How the coach decides
-
-The model judges two things separately, as yes, no or unsure: is the item important, and is it urgent? It also words the questions. The app then applies fixed rules:
-
-- Important means it serves your stated goals or responsibilities, or that never doing it has a lasting cost.
-- Urgent means a real deadline or consequence in about the next few days. Pressure from other people doesn't count.
-- The first reply is always a question, however sure the model is.
-- A suggestion appears only when both judgments are settled, and the app, not the model, works out the square.
-- After three answers with no clear picture, the coach stops asking and leaves the choice to you.
-
-A placed card shows the coach's reason only if you followed its suggestion. If you choose a different square, the reason is cleared. To change what the coach looks for, edit the prompt in `app/coach.py`.
+The [user guide](docs/user-guide.md) covers the method and daily use in more detail. The [architecture](docs/architecture.md) document explains how the coach decides.
 
 ## Troubleshooting
 
@@ -144,5 +137,10 @@ app/
   ai.py       client for the local Ollama server
   db.py       SQLite storage
   static/     the page
+docs/         user guide, architecture, diagrams and screenshots
 tests/
 ```
+
+## License
+
+[MIT](LICENSE)

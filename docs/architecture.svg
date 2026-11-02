@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Priority Matrix architecture</title>
+  <desc id="desc">A browser on the home network talks over HTTP on port 8010 to a Docker container on the home server. The container serves the web page and a FastAPI app, which uses coaching rules, an Ollama client and a SQLite database on a Docker volume. The Ollama client calls Ollama, which runs natively on the same server. Nothing leaves the home network.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#23211c"/>
+    </marker>
+  </defs>
+  <style>
+    .title { font-size: 15px; font-weight: 700; fill: #23211c; }
+    .sub { font-size: 12px; fill: #6d685c; }
+    .label { font-size: 11.5px; fill: #23211c; }
+    .caps { font-size: 11px; font-weight: 700; letter-spacing: .08em; fill: #6d685c; }
+    .box { stroke: #b9b19e; stroke-width: 1; }
+    .line { stroke: #23211c; stroke-width: 1.5; fill: none; }
+  </style>
+
+  <rect width="960" height="540" rx="14" fill="#fbf9f4"/>
+
+  <!-- Browser -->
+  <rect x="20" y="170" width="150" height="110" rx="10" fill="#ffffff" class="box"/>
+  <text x="95" y="203" text-anchor="middle" class="title">Your browser</text>
+  <text x="95" y="226" text-anchor="middle" class="sub">phone, tablet</text>
+  <text x="95" y="243" text-anchor="middle" class="sub">or laptop on your</text>
+  <text x="95" y="260" text-anchor="middle" class="sub">home network</text>
+
+  <!-- Home server boundary -->
+  <rect x="232" y="24" width="704" height="456" rx="14" fill="none" stroke="#6d685c" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="252" y="50" class="caps">HOME SERVER · LINUX + DOCKER</text>
+
+  <!-- Container -->
+  <rect x="252" y="66" width="392" height="394" rx="12" fill="#f1ede3" stroke="#2f5d50" stroke-width="1.5"/>
+  <text x="272" y="92" class="caps" style="fill:#2f5d50">DOCKER CONTAINER · priority-matrix</text>
+
+  <rect x="272" y="108" width="352" height="64" rx="8" fill="#d9eadf" class="box"/>
+  <text x="288" y="134" class="title">Web page</text>
+  <text x="288" y="155" class="sub">app/static: the matrix, inbox and coach panel</text>
+
+  <rect x="272" y="190" width="352" height="64" rx="8" fill="#ffffff" class="box"/>
+  <text x="288" y="216" class="title">FastAPI app</text>
+  <text x="288" y="237" class="sub">main.py: JSON API for items, settings, coaching</text>
+
+  <rect x="272" y="274" width="168" height="80" rx="8" fill="#f6dfd6" class="box"/>
+  <text x="288" y="300" class="title">Coach rules</text>
+  <text x="288" y="320" class="sub">coach.py: prompt, and</text>
+  <text x="288" y="337" class="sub">when to suggest</text>
+
+  <rect x="456" y="274" width="168" height="80" rx="8" fill="#f4e8c8" class="box"/>
+  <text x="472" y="300" class="title">Ollama client</text>
+  <text x="472" y="320" class="sub">ai.py: talks only to</text>
+  <text x="472" y="337" class="sub">your Ollama, no proxy</text>
+
+  <rect x="272" y="376" width="352" height="66" rx="8" fill="#e7e3da" class="box"/>
+  <text x="288" y="402" class="title">SQLite database</text>
+  <text x="288" y="423" class="sub">/data/matrix.db on volume "data": items, goals, chats</text>
+
+  <!-- Inside-container arrows -->
+  <line x1="448" y1="172" x2="448" y2="188" class="line" marker-end="url(#arrow)"/>
+  <line x1="356" y1="254" x2="356" y2="272" class="line" marker-end="url(#arrow)"/>
+  <line x1="440" y1="314" x2="454" y2="314" class="line" marker-end="url(#arrow)"/>
+  <path d="M624 222 H634 V409 H626" class="line" marker-end="url(#arrow)"/>
+
+  <!-- Ollama -->
+  <rect x="744" y="252" width="172" height="110" rx="10" fill="#ffffff" stroke="#2f5d50" stroke-width="2"/>
+  <text x="830" y="284" text-anchor="middle" class="title">Ollama</text>
+  <text x="830" y="306" text-anchor="middle" class="sub">native service</text>
+  <text x="830" y="323" text-anchor="middle" class="sub">on port 11434</text>
+  <text x="830" y="340" text-anchor="middle" class="sub">e.g. llama3.2</text>
+
+  <!-- Browser to app -->
+  <line x1="172" y1="222" x2="270" y2="222" class="line" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="201" y="212" text-anchor="middle" class="label">HTTP</text>
+  <text x="201" y="241" text-anchor="middle" class="label">:8010</text>
+
+  <!-- App to Ollama -->
+  <line x1="626" y1="304" x2="742" y2="304" class="line" marker-end="url(#arrow)"/>
+  <line x1="742" y1="324" x2="626" y2="324" class="line" marker-end="url(#arrow)"/>
+  <text x="690" y="274" text-anchor="middle" class="label">item, goals,</text>
+  <text x="690" y="290" text-anchor="middle" class="label">your answers</text>
+  <text x="694" y="344" text-anchor="middle" class="label">its judgement,</text>
+  <text x="694" y="360" text-anchor="middle" class="label">next question</text>
+  <text x="830" y="392" text-anchor="middle" class="sub">reached from the container</text>
+  <text x="830" y="408" text-anchor="middle" class="sub">as host.docker.internal</text>
+
+  <text x="480" y="512" text-anchor="middle" class="label" style="font-size:13px">Nothing leaves your home network. To-do items are only sent to your own Ollama server.</text>
+</svg>
