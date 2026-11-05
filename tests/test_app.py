@@ -340,3 +340,12 @@ def test_an_old_database_is_upgraded_and_keeps_its_items(tmp_path, monkeypatch):
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         row = conn.execute("SELECT title, version FROM items").fetchone()
         assert (row["title"], row["version"]) == ("Kept", 0)
+
+
+def test_favicon_is_linked_and_served(client):
+    assert 'rel="icon" href="favicon.svg"' in client.get("/").text
+    for path in ("/favicon.svg", "/favicon.ico"):
+        res = client.get(path)
+        assert res.status_code == 200
+        assert res.headers["content-type"].startswith("image/svg+xml")
+        assert "<svg" in res.text

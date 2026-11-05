@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import ai, coach, db
+
+STATIC = Path(__file__).parent / "static"
 
 Conn = Annotated[sqlite3.Connection, Depends(db.session)]
 Quadrant = Literal["do", "schedule", "delegate", "drop"]
@@ -215,4 +217,10 @@ def restart_coach(item_id: int, conn: Conn):
     return db.get_item(conn, item_id)
 
 
-app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Browsers and bookmark tools that ignore the page's <link rel="icon"> still ask here."""
+    return FileResponse(STATIC / "favicon.svg", media_type="image/svg+xml")
+
+
+app.mount("/", StaticFiles(directory=STATIC, html=True), name="static")
