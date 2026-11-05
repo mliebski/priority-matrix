@@ -22,6 +22,10 @@ class AiError(Exception):
     pass
 
 
+class Unreachable(AiError):
+    """Ollama could not be contacted at all (as opposed to answering badly)."""
+
+
 def _open(path: str, payload: dict | None = None, timeout: float = STATUS_TIMEOUT):
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(f"{URL}{path}", data=data, method="POST" if data else "GET",
@@ -38,12 +42,26 @@ def _open(path: str, payload: dict | None = None, timeout: float = STATUS_TIMEOU
             pass
         raise AiError(f"Ollama said: {detail[:300]}")
     except (OSError, ValueError) as e:
-        raise AiError(f"Ollama is not reachable at {URL} ({getattr(e, 'reason', e)}).")
+        raise Unreachable(f"Ollama is not reachable at {URL} ({getattr(e, 'reason', e)}).")
+
+
+def _read_json(path: str, payload: dict | None = None, timeout: float = STATUS_TIMEOUT) -> dict:
+    """Open, read and parse in one place, so a timeout or junk while reading the body is an AiError too."""
+    try:
+        with _open(path, payload, timeout) as r:
+            data = json.load(r)
+    except AiError:
+        raise
+    except (OSError, ValueError) as e:
+        raise AiError(f"Ollama sent an unreadable reply from {URL} ({getattr(e, 'reason', e)}).")
+    if not isinstance(data, dict):
+        raise AiError(f"Ollama sent an unexpected reply from {URL}.")
+    return data
 
 
 def models() -> list[str]:
-    with _open("/api/tags") as r:
-        return sorted(m["name"] for m in json.load(r).get("models", []))
+    tags = _read_json("/api/tags").get("models", [])
+    return sorted(m["name"] for m in tags if isinstance(m, dict) and isinstance(m.get("name"), str))
 
 
 def status(saved_model: str) -> dict:
@@ -70,9 +88,10 @@ def chat_json(model: str, messages: list[dict], schema: dict) -> dict:
                "format": schema, "think": False,  # coaching needs a quick reply, not long reasoning
                "options": {"temperature": 0.2, "num_ctx": 8192}}
     for _ in range(2):
-        with _open("/api/chat", payload, timeout=TIMEOUT) as r:
-            answer = json.load(r)
-        text = THINK.sub("", answer.get("message", {}).get("content", "")).strip()
+        answer = _read_json("/api/chat", payload, timeout=TIMEOUT)
+        message = answer.get("message")
+        content = message.get("content") if isinstance(message, dict) else ""
+        text = THINK.sub("", content if isinstance(content, str) else "").strip()
         try:
             parsed = json.loads(text)
         except ValueError:

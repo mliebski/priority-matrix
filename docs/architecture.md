@@ -22,9 +22,10 @@ The container runs as an unprivileged user (uid 1000), and Docker restarts it if
 ![The coach flow: your item goes to the local model, the app applies rules, and you decide](coach-flow.svg)
 
 1. The page sends your answer to `POST /api/items/{id}/coach`, or an empty one to start the conversation.
-2. The app checks that Ollama is reachable and a model is chosen. If not, it reports why, and the page falls back to manual sorting.
+2. The app uses the model chosen in Settings (or `OLLAMA_MODEL`) directly. Only when none is set does it ask Ollama which models exist. If Ollama can't be reached it reports why, and the page falls back to manual sorting.
 3. `coach.py` builds the messages:
-   - a system prompt that defines *important* and *urgent*, and includes today's date, your goals, and the item with its due date and days left;
+   - a system prompt that defines *important* and *urgent*, and includes today's date, your goals, and the item's due date and days left;
+   - a first user message with the item's title, kept out of the system prompt so a to-do's wording can't pose as instructions;
    - then the conversation so far.
 4. `ai.py` calls Ollama's `/api/chat`. The JSON schema in `format` limits the answer to four fields: `important` and `urgent`, each `yes`, `no` or `unsure`, plus `reason` and `question`. Thinking is turned off, `temperature` is 0.2, and the model stays loaded for 15 minutes between items. An unreadable answer is retried once.
 5. `coach.py` applies fixed rules to that answer:
@@ -32,7 +33,7 @@ The container runs as an unprivileged user (uid 1000), and Docker restarts it if
    - If both judgments are settled, the app maps them to a square itself. The model never names the square, so it can't contradict its own reasoning.
    - After three answers with something still unclear, the coach stops asking and leaves the choice to you.
    - If the model is unclear but asks no question, a built-in question is used.
-6. The new message and any suggestion are saved only after the model has answered. A failed turn leaves nothing half-saved, and the same answer can simply be sent again.
+6. The new message and any suggestion are saved only after the model has answered. A failed turn leaves nothing half-saved, and the same answer can simply be sent again. Each item has a `version` that every saved turn and restart bumps; if it changed while the model was thinking (another window answered, or the conversation was restarted), the reply is dropped with `409` instead of overwriting the newer conversation.
 7. A suggestion never moves the item. The item moves only when you place it. The reason stays on the card only if you put it where the coach suggested.
 
 ## Data
@@ -47,7 +48,8 @@ Two SQLite tables:
 | Method and path | Purpose |
 |-----------------|---------|
 | `GET /health` | Health check used by Docker |
-| `GET /api/state` | All items, goals and the chosen model |
+| `GET /api/state` | All items without their conversations, goals, the chosen model and the server's date |
+| `GET /api/items/{id}` | One item with its conversation |
 | `GET /api/ai` | Whether Ollama is reachable, installed models, model in use |
 | `PUT /api/settings` | Save goals and model |
 | `POST /api/items` | Add one item, or many, one per line |
@@ -59,7 +61,7 @@ Two SQLite tables:
 ## Privacy and security
 
 - **Data stays home.** Items, goals and conversations live in the SQLite file. They are only sent to the Ollama address you configure. The app makes no other outbound requests and loads no external fonts or scripts.
-- **No login.** Anyone who can reach the port can read and change the list. Keep it on your home network, and never forward the port from your router.
+- **Login is optional.** By default anyone who can reach the port can read and change the list. Set `APP_PASSWORD` to require HTTP Basic authentication on everything except `/health`; it is sent unencrypted over plain http, so it deters casual access only. `APP_BIND=127.0.0.1` limits the port to the box itself. Keep the app on your home network, and never forward the port from your router.
 - **Ollama has no authentication.** Let it listen on all interfaces so the container can reach it, then use a firewall rule to allow only the Docker networks. The README shows how.
 - **Input is checked.** Titles are limited to 500 characters, answers to 2,000 and goals to 4,000. The page inserts all text as plain text, never as HTML.
 
@@ -67,7 +69,7 @@ Two SQLite tables:
 
 - **The app decides the square, not the model.** Small local models are often confident and inconsistent. Asking them only two yes, no or unsure judgments, and enforcing the rules in code, keeps the coach predictable even on a 3B model.
 - **Questions before answers.** The point is to help people think through their priorities, not to sort for them. So the first reply is always a question, and the person places every item.
-- **SQLite in a volume.** One person's to-do list doesn't need a database server, and a single file is easy to back up.
+- **SQLite in a volume.** One person's to-do list doesn't need a database server, and a single file is easy to back up. It runs in WAL mode. Schema changes are appended to `MIGRATIONS` in `app/db.py`, and `PRAGMA user_version` records which have run, so an existing database is upgraded when the app starts.
 - **No streaming.** Each reply is a short structured answer, so the page shows a *Thinking…* timer instead of streaming text.
 
 ## Limits
@@ -82,4 +84,5 @@ Two SQLite tables:
 - **The coach's wording and definitions:** `SYSTEM` and `QUESTIONS` in `app/coach.py`.
 - **How many answers before it hands the choice back:** `MAX_ANSWERS` in `app/coach.py`.
 - **The squares' names and hints:** `QUADRANTS` in `app/static/app.js`.
-- **Tests:** `tests/test_app.py` runs against `tests/fake_ollama.py`, a stand-in for Ollama, so no model is needed. The README's Development section shows how to run them.
+- **The database schema:** append a new script to `MIGRATIONS` in `app/db.py`; never edit one that has shipped.
+- **Tests:** `tests/test_app.py` runs against `tests/fake_ollama.py`, a stand-in for Ollama, so no model is needed. The README's Development section shows how to run them. CI (`.github/workflows/ci.yml`) runs ruff, the tests with coverage, a syntax check of `app.js` and a Docker build.

@@ -53,7 +53,7 @@ You need a Linux box with Docker, and Ollama running natively on it. Any small a
 4. Open `http://<box-ip>:8010` from any browser on your network.
 5. Open **Settings**, describe what matters to you, pick a model and save.
 
-The app has no login, so anyone on your home network can open it. Don't forward its port from your router.
+By default the app has no login, so anyone on your home network can read and change your list. Set `APP_PASSWORD` in `.env` to require one (see Configuration), and don't forward the port from your router. The password travels over plain http, so it deters casual access only.
 
 ## Configuration
 
@@ -62,7 +62,9 @@ To change a setting, copy `.env.example` to `.env`, edit it and run `docker comp
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `APP_PORT` | `8010` | Port the app uses on the box |
-| `TZ` | `America/Toronto` | Time zone for "today" and "overdue" |
+| `APP_PASSWORD` | empty | If set, the page asks for this password (any user name) |
+| `APP_BIND` | `0.0.0.0` | Set to `127.0.0.1` to reach the app only from the box itself |
+| `TZ` | `UTC` | Time zone for "today" and "overdue" |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama address. Change it only if Ollama runs on another computer |
 | `OLLAMA_MODEL` | none | Model to use if none is picked in Settings |
 
@@ -110,8 +112,9 @@ On Windows, in PowerShell:
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt pytest httpx
+.venv\Scripts\pip install -r requirements-dev.txt
 .venv\Scripts\python -m pytest tests
+.venv\Scripts\ruff check app tests
 ```
 
 To try the app without Docker or a model, start a stand-in for Ollama in one window:

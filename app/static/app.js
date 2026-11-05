@@ -9,8 +9,8 @@ const QUADRANTS = [
 const quadrantName = key => QUADRANTS.find(q => q.key === key)?.name ?? key;
 
 const $ = id => document.getElementById(id);
-const state = { items: [], goals: "", model: "", ai: null };
-const coach = { id: null, sorting: false, busy: null, error: "" };  // busy: the item being waited on
+const state = { items: [], goals: "", model: "", today: "", ai: null };
+const coach = { id: null, sorting: false, busy: null, error: "", opening: null };  // busy: the item being waited on
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -29,7 +29,7 @@ async function api(method, path, body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = typeof data.detail === "string" ? data.detail : "That didn't work.";
-    throw new Error(detail);
+    throw Object.assign(new Error(detail), { status: res.status });
   }
   return data;
 }
@@ -54,9 +54,22 @@ function replaceItem(updated) {
   state.items = state.items.map(i => (i.id === updated.id ? updated : i));
 }
 
+// The list comes without conversations (chat is null); keep the ones already fetched if unchanged.
 async function load() {
-  Object.assign(state, await api("GET", "/api/state"));
+  const fresh = await api("GET", "/api/state");
+  const before = new Map(state.items.map(i => [i.id, i]));
+  fresh.items = fresh.items.map(i => {
+    const old = before.get(i.id);
+    return old?.chat && old.version === i.version ? { ...i, chat: old.chat } : i;
+  });
+  Object.assign(state, fresh);
+  if (coach.id) await ensureChat(coach.id);
   render();
+}
+
+async function ensureChat(id) {
+  if (item(id)?.chat) return;
+  replaceItem(await api("GET", `/api/items/${id}`));
 }
 
 async function checkAi() {
@@ -75,7 +88,7 @@ async function checkAi() {
 
 function dueLabel(i) {
   if (!i.due) return null;
-  const today = new Date().toLocaleDateString("en-CA");  // YYYY-MM-DD in local time
+  const today = state.today;  // the server's date, the one the coach uses too
   const date = new Date(`${i.due}T00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   if (i.due < today) return { text: `Overdue, ${date}`, late: true };
   return { text: i.due === today ? "Due today" : `Due ${date}`, late: i.due === today };
@@ -87,6 +100,7 @@ function card(i) {
   node.classList.toggle("selected", coach.id === i.id);
   node.classList.toggle("finished", Boolean(i.done_at));
   node.draggable = !i.done_at;
+  node.title = i.done_at ? "" : "Open it to place it in a square, or drag it there";
   node.addEventListener("dragstart", e => {
     e.dataTransfer.setData("text/plain", i.id);
     node.classList.add("dragging");
@@ -184,7 +198,15 @@ function nextOrClose() {
 
 /* ---------- Coach ---------- */
 
-function openCoach(id, sorting) {
+async function openCoach(id, sorting) {
+  coach.opening = id;
+  try {
+    await ensureChat(id);
+  } catch (e) {
+    toast(e.message);
+    return;
+  }
+  if (coach.opening !== id || !item(id)) return;  // another item was opened meanwhile, or this one is gone
   coach.id = id;
   coach.sorting = sorting;
   coach.error = "";
@@ -195,11 +217,12 @@ function openCoach(id, sorting) {
   $("coach-due").value = i.due ?? "";
   render();
   // Opening an unsorted item starts the conversation; a placed one waits to be asked.
-  if (!i.chat.length && !i.quadrant) startCoach(id);
+  if (!i.chat?.length && !i.quadrant) startCoach(id);
 }
 
 function closeCoach() {
   coach.id = null;
+  coach.opening = null;
   coach.sorting = false;
   $("coach").hidden = true;
   render();
@@ -207,7 +230,11 @@ function closeCoach() {
 
 async function askCoach(id, text) {
   if (!state.ai?.ok) await checkAi();
-  if (!state.ai.ok || coach.busy) return false;
+  if (!state.ai.ok) return false;
+  if (coach.busy) {
+    toast("The coach is still working on another item. Wait for its reply first.");
+    return false;
+  }
   coach.busy = id;
   coach.error = "";
   renderCoach();
@@ -223,6 +250,7 @@ async function askCoach(id, text) {
   } catch (e) {
     coach.error = e.message;
     checkAi();
+    if (e.status === 409) load().catch(() => {});  // show the newer conversation
   }
   clearInterval(timer);
   coach.busy = null;
@@ -243,7 +271,8 @@ function renderCoach() {
   const i = item(coach.id);
   if (!i) return closeCoach();
   const busyHere = coach.busy === i.id;
-  const nodes = i.chat.map(m => el("div", `msg from-${m.role}`, m.text));
+  const turns = i.chat ?? [];
+  const nodes = turns.map(m => el("div", `msg from-${m.role}`, m.text));
 
   const pending = pendingAnswer(i);
   if (pending) nodes.push(el("div", "msg from-you", pending));
@@ -265,11 +294,11 @@ function renderCoach() {
     nodes.push(el("div", "msg from-coach",
       "The AI isn't available, but you can still decide. Ask yourself: would it matter in a year? " +
       "Does a real deadline hit this week? Then pick a square below."));
-  } else if (!i.chat.length && !busyHere && !coach.error) {
+  } else if (!turns.length && !busyHere && !coach.error) {
     const start = el("button", "primary", "Talk it through");
     start.addEventListener("click", () => startCoach(i.id));
     nodes.push(start);
-  } else if (!i.chat.length && coach.error && !busyHere) {
+  } else if (!turns.length && coach.error && !busyHere) {
     const retry = el("button", "primary-outline", "Try again");
     retry.addEventListener("click", () => startCoach(i.id));
     nodes.push(retry);
@@ -279,11 +308,11 @@ function renderCoach() {
   chat.replaceChildren(...nodes);
   chat.scrollTop = chat.scrollHeight;
 
-  const canAnswer = state.ai?.ok && i.chat.length > 0 && !coach.busy;
+  const canAnswer = state.ai?.ok && turns.length > 0 && !coach.busy;
   $("answer").disabled = !canAnswer && !busyHere;
   $("answer-send").disabled = !canAnswer;
-  $("answer-form").hidden = !i.chat.length;
-  $("coach-restart").hidden = !i.chat.length;
+  $("answer-form").hidden = !turns.length;
+  $("coach-restart").hidden = !turns.length;
   $("coach-done").textContent = i.done_at ? "Not done" : "Mark done";
 
   $("picker").replaceChildren(...QUADRANTS.map(q => {
@@ -317,8 +346,9 @@ function submitOnEnter(textarea, submit) {
 async function addItems() {
   const box = $("add-text");
   if (!box.value.trim()) return;
-  await api("POST", "/api/items", { text: box.value });
+  const res = await api("POST", "/api/items", { text: box.value });
   box.value = "";
+  if (res.shortened) toast(`${res.shortened} item(s) were over 500 characters and were shortened.`);
   await load();
 }
 
@@ -355,11 +385,23 @@ $("settings-cancel").addEventListener("click", () => $("settings").close());
 $("settings-form").addEventListener("submit", e => { e.preventDefault(); attempt(saveSettings); });
 $("coach-close").addEventListener("click", closeCoach);
 $("coach-title").addEventListener("change", e => attempt(async () => {
-  replaceItem(await api("PATCH", `/api/items/${coach.id}`, { title: e.target.value }));
+  const id = coach.id;
+  if (!id) return;
+  try {
+    replaceItem(await api("PATCH", `/api/items/${id}`, { title: e.target.value }));
+  } finally {
+    if (coach.id === id) e.target.value = item(id).title;  // show what was really saved
+  }
   render();
 }));
 $("coach-due").addEventListener("change", e => attempt(async () => {
-  replaceItem(await api("PATCH", `/api/items/${coach.id}`, { due: e.target.value || null }));
+  const id = coach.id;
+  if (!id) return;
+  try {
+    replaceItem(await api("PATCH", `/api/items/${id}`, { due: e.target.value || null }));
+  } finally {
+    if (coach.id === id) e.target.value = item(id).due ?? "";
+  }
   render();
 }));
 $("coach-done").addEventListener("click", () => attempt(() => setDone(coach.id, !item(coach.id).done_at)));
